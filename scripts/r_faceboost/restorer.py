@@ -1,6 +1,7 @@
 import sys
 import cv2
 import numpy as np
+import onnxruntime
 import torch
 from torchvision.transforms.functional import normalize
 
@@ -19,7 +20,6 @@ from r_chainner import model_loading
 from reactor_utils import (
     tensor2img,
     img2tensor,
-    set_ort_session,
     prepare_cropped_face,
     normalize_cropped_face
 )
@@ -34,11 +34,33 @@ else:
     providers = ["CPUExecutionProvider"]
 
 
+def _load_restorer(face_restore_model, model_path, device):
+    if ".onnx" in face_restore_model:
+        onnxruntime.set_default_logger_severity(3)
+        return onnxruntime.InferenceSession(model_path, providers=providers)
+    if "codeformer" in face_restore_model.lower():
+        codeformer_net = ARCH_REGISTRY.get("CodeFormer")(
+            dim_embd=512,
+            codebook_size=1024,
+            n_head=8,
+            n_layers=9,
+            connect_list=["32", "64", "128", "256"],
+        ).to(device)
+        checkpoint = torch.load(model_path)["params_ema"]
+        codeformer_net.load_state_dict(checkpoint)
+        return codeformer_net.eval()
+    sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+    facerestore_model = model_loading.load_state_dict(sd).eval()
+    facerestore_model.to(device)
+    return facerestore_model
+
+
 def get_restored_face(cropped_face,
                       face_restore_model,
                       face_restore_visibility,
                       codeformer_weight,
-                      interpolation: str = "Bicubic"):
+                      interpolation: str = "Bicubic",
+                      model_cache=None):
 
     if interpolation == "Bicubic":
         interpolate = cv2.INTER_CUBIC
@@ -75,12 +97,17 @@ def get_restored_face(cropped_face,
     try:
 
         with torch.no_grad():
+            cache_key = (face_restore_model, model_path, device, tuple(providers))
+            facerestore_model = model_cache.get(cache_key) if model_cache is not None else None
+            if facerestore_model is None:
+                facerestore_model = _load_restorer(face_restore_model, model_path, device)
+                if model_cache is not None:
+                    model_cache[cache_key] = facerestore_model
 
             if ".onnx" in face_restore_model:  # ONNX models
 
-                ort_session = set_ort_session(model_path, providers=providers)
+                ort_session = facerestore_model
                 ort_session_inputs = {}
-                facerestore_model = ort_session
 
                 for ort_session_input in ort_session.get_inputs():
                     if ort_session_input.name == "input":
@@ -94,22 +121,6 @@ def get_restored_face(cropped_face,
                 restored_face = normalize_cropped_face(output)
 
             else:  # PTH models
-
-                if "codeformer" in face_restore_model.lower():
-                    codeformer_net = ARCH_REGISTRY.get("CodeFormer")(
-                        dim_embd=512,
-                        codebook_size=1024,
-                        n_head=8,
-                        n_layers=9,
-                        connect_list=["32", "64", "128", "256"],
-                    ).to(device)
-                    checkpoint = torch.load(model_path)["params_ema"]
-                    codeformer_net.load_state_dict(checkpoint)
-                    facerestore_model = codeformer_net.eval()
-                else:
-                    sd = comfy.utils.load_torch_file(model_path, safe_load=True)
-                    facerestore_model = model_loading.load_state_dict(sd).eval()
-                    facerestore_model.to(device)
 
                 output = facerestore_model(cropped_face_t, w=codeformer_weight)[
                     0] if "codeformer" in face_restore_model.lower() else facerestore_model(cropped_face_t)[0]
