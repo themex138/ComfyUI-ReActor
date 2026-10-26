@@ -146,27 +146,29 @@ def model_names():
 
 
 class reactor:
+    DESCRIPTION = "Swap selected target faces using a source image or saved face identity, with optional restoration."
+    OUTPUT_TOOLTIPS = ('Image batch after swapping and enabled restoration.', 'Source face identity for reuse in another swap.', 'Target image batch before swapping.')
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "enabled": ("BOOLEAN", {"default": True, "label_off": "OFF", "label_on": "ON"}),
-                "input_image": ("IMAGE",),
-                "swap_model": (list(model_names().keys()),),
-                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"],),
-                "face_restore_model": (get_model_names(get_restorers),),
-                "face_restore_visibility": ("FLOAT", {"default": 1, "min": 0.1, "max": 1, "step": 0.05}),
-                "codeformer_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
-                "detect_gender_input": (["no","female","male"], {"default": "no"}),
-                "detect_gender_source": (["no","female","male"], {"default": "no"}),
-                "input_faces_index": ("STRING", {"default": "0"}),
-                "source_faces_index": ("STRING", {"default": "0"}),
-                "console_log_level": ([0, 1, 2], {"default": 1}),
+                "enabled": ("BOOLEAN", {"tooltip": "Run face swapping when enabled. Disable to return the input without swapping.", "default": True, "label_off": "OFF", "label_on": "ON"}),
+                "input_image": ("IMAGE", {"tooltip": "Target image or batch whose selected faces will be replaced."}),
+                "swap_model": (list(model_names().keys()), {"tooltip": "Face-swap network. Face Boost supports inswapper and reswapper, not hyperswap."}),
+                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"], {"tooltip": "Detector used for the restoration pass, not the face-swap detector."}),
+                "face_restore_model": (get_model_names(get_restorers), {"tooltip": "Restorer applied after swapping. Select none to skip this pass. Face Boost has its own model."}),
+                "face_restore_visibility": ("FLOAT", {"tooltip": "Blend restored face with the unrestored face: 1 uses full restoration; lower values keep more of the original.", "default": 1, "min": 0.1, "max": 1, "step": 0.05}),
+                "codeformer_weight": ("FLOAT", {"tooltip": "CodeFormer only: higher values retain more input-face detail; lower values favor restoration. Ignored by other restorers.", "default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
+                "detect_gender_input": (["no","female","male"], {"tooltip": "Check the selected target faces against the detected gender; mismatches are skipped. no disables this check.", "default": "no"}),
+                "detect_gender_source": (["no","female","male"], {"tooltip": "Check the selected source faces against the detected gender; mismatches are skipped. no disables this check.", "default": "no"}),
+                "input_faces_index": ("STRING", {"tooltip": "Comma-separated target indices, starting at 0, after sorting. Example: 0,1. Regular swap sorts largest first; fast swap uses Options.", "default": "0"}),
+                "source_faces_index": ("STRING", {"tooltip": "Comma-separated source indices, starting at 0, after sorting. Valid source faces cycle across selected targets.", "default": "0"}),
+                "console_log_level": ([0, 1, 2], {"tooltip": "0: warnings and errors; 1: progress/status; 2: detailed diagnostic logging.", "default": 1}),
             },
             "optional": {
-                "source_image": ("IMAGE",),
-                "face_model": ("FACE_MODEL",),
-                "face_boost": ("FACE_BOOST",),
+                "source_image": ("IMAGE", {"tooltip": "Source identity image. Takes priority over face_model when both are connected."}),
+                "face_model": ("FACE_MODEL", {"tooltip": "Source identity from Load or Build Face Model. Used when source_image is not connected."}),
+                "face_boost": ("FACE_BOOST", {"tooltip": "Optional restoration of each swapped face crop before pasting it back. Configured by Face Boost."}),
             },
             "hidden": {"faces_order": "FACES_ORDER"},
         }
@@ -525,23 +527,25 @@ class reactor:
 
 
 class ReActorPlusOpt:
+    DESCRIPTION = "Swap faces with separate Options and Face Boost inputs."
+    OUTPUT_TOOLTIPS = ('Image batch after swapping and enabled restoration.', 'Source face identity for reuse in another swap.', 'Target image batch before swapping.')
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "enabled": ("BOOLEAN", {"default": True, "label_off": "OFF", "label_on": "ON"}),
-                "input_image": ("IMAGE",),
-                "swap_model": (list(model_names().keys()),),
-                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"],),
-                "face_restore_model": (get_model_names(get_restorers),),
-                "face_restore_visibility": ("FLOAT", {"default": 1, "min": 0.1, "max": 1, "step": 0.05}),
-                "codeformer_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
+                "enabled": ("BOOLEAN", {"tooltip": "Run face swapping when enabled. Disable to return the input without swapping.", "default": True, "label_off": "OFF", "label_on": "ON"}),
+                "input_image": ("IMAGE", {"tooltip": "Target image or batch whose selected faces will be replaced."}),
+                "swap_model": (list(model_names().keys()), {"tooltip": "Face-swap network. Face Boost supports inswapper and reswapper, not hyperswap."}),
+                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"], {"tooltip": "Detector used for the restoration pass, not the face-swap detector."}),
+                "face_restore_model": (get_model_names(get_restorers), {"tooltip": "Restorer applied after swapping. Select none to skip this pass. Face Boost has its own model."}),
+                "face_restore_visibility": ("FLOAT", {"tooltip": "Blend restored face with the unrestored face: 1 uses full restoration; lower values keep more of the original.", "default": 1, "min": 0.1, "max": 1, "step": 0.05}),
+                "codeformer_weight": ("FLOAT", {"tooltip": "CodeFormer only: higher values retain more input-face detail; lower values favor restoration. Ignored by other restorers.", "default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
             },
             "optional": {
-                "source_image": ("IMAGE",),
-                "face_model": ("FACE_MODEL",),
-                "options": ("OPTIONS",),
-                "face_boost": ("FACE_BOOST",),
+                "source_image": ("IMAGE", {"tooltip": "Source identity image. Takes priority over face_model when both are connected."}),
+                "face_model": ("FACE_MODEL", {"tooltip": "Source identity from Load or Build Face Model. Used when source_image is not connected."}),
+                "options": ("OPTIONS", {"tooltip": "Face order, indices, gender checks, logging, and restoration scope from ReActor Options."}),
+                "face_boost": ("FACE_BOOST", {"tooltip": "Optional restoration of each swapped face crop before pasting it back. Configured by Face Boost."}),
             }
         }
 
@@ -592,11 +596,13 @@ class ReActorPlusOpt:
 
 
 class LoadFaceModel:
+    DESCRIPTION = "Load a saved person identity from models/reactor/faces for swapping without a source image. Create one with Build Face Model or Save Face Model."
+    OUTPUT_TOOLTIPS = ('Loaded face identity, or none when no model is selected.', 'Selected filename without the .safetensors suffix.')
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "face_model": (get_model_names(get_facemodels),),
+                "face_model": (get_model_names(get_facemodels), {"tooltip": "Saved person identity (.safetensors) from models/reactor/faces. Downloaded inswapper weights belong in swap_model. none returns no identity; use source_image instead."}),
             }
         }
 
@@ -718,6 +724,8 @@ class ReActorWeight:
 
 
 class BuildFaceModel:
+    DESCRIPTION = "Combine faces from images or a face-model batch into one reusable identity."
+    OUTPUT_TOOLTIPS = ('Combined or reused face identity.',)
     def __init__(self):
         self.output_dir = FACE_MODELS_PATH
 
@@ -725,14 +733,14 @@ class BuildFaceModel:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "save_mode": ("BOOLEAN", {"default": True, "label_off": "OFF", "label_on": "ON"}),
-                "send_only": ("BOOLEAN", {"default": False, "label_off": "NO", "label_on": "YES"}),
-                "face_model_name": ("STRING", {"default": "default"}),
-                "compute_method": (["Mean", "Median", "Mode"], {"default": "Mean"}),
+                "save_mode": ("BOOLEAN", {"tooltip": "Save a newly built identity to the faces folder as face_model_name.safetensors.", "default": True, "label_off": "OFF", "label_on": "ON"}),
+                "send_only": ("BOOLEAN", {"tooltip": "Reuse the most recently built identity in this running process. If none exists, build from the connected inputs.", "default": False, "label_off": "NO", "label_on": "YES"}),
+                "face_model_name": ("STRING", {"tooltip": "Filename stem for saving; .safetensors is added automatically. Used when save_mode is on.", "default": "default"}),
+                "compute_method": (["Mean", "Median", "Mode"], {"tooltip": "Combine identity embeddings across inputs using the element-wise Mean, Median, or Mode.", "default": "Mean"}),
             },
             "optional": {
-                "images": ("IMAGE",),
-                "face_models": ("FACE_MODEL",),
+                "images": ("IMAGE", {"tooltip": "Build from the first detected face in each image. Takes priority over face_models when both are connected."}),
+                "face_models": ("FACE_MODEL", {"tooltip": "Batch of existing identities from Make Face Model Batch. Used when images is not connected."}),
             }
         }
 
@@ -849,6 +857,7 @@ class BuildFaceModel:
 
 
 class SaveFaceModel:
+    DESCRIPTION = "Save a face identity from an image or an existing face model."
     def __init__(self):
         self.output_dir = FACE_MODELS_PATH
 
@@ -856,13 +865,13 @@ class SaveFaceModel:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "save_mode": ("BOOLEAN", {"default": True, "label_off": "OFF", "label_on": "ON"}),
-                "face_model_name": ("STRING", {"default": "default"}),
-                "select_face_index": ("INT", {"default": 0, "min": 0}),
+                "save_mode": ("BOOLEAN", {"tooltip": "Enable writing the identity file. Disable to skip saving.", "default": True, "label_off": "OFF", "label_on": "ON"}),
+                "face_model_name": ("STRING", {"tooltip": "Filename stem in the faces folder; .safetensors is added automatically.", "default": "default"}),
+                "select_face_index": ("INT", {"tooltip": "Zero-based index in the detector results when extracting from image. Not used for a connected face_model.", "default": 0, "min": 0}),
             },
             "optional": {
-                "image": ("IMAGE",),
-                "face_model": ("FACE_MODEL",),
+                "image": ("IMAGE", {"tooltip": "Extract an identity from this image. Takes priority over face_model when saving."}),
+                "face_model": ("FACE_MODEL", {"tooltip": "Identity to save when image is not connected."}),
             }
         }
 
@@ -898,15 +907,17 @@ class SaveFaceModel:
 
 
 class RestoreFace:
+    DESCRIPTION = "Restore faces in an image batch and blend the result with the input."
+    OUTPUT_TOOLTIPS = ('Image batch after face restoration and visibility blending.',)
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": ("IMAGE",),
-                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"],),
-                "model": (get_model_names(get_restorers),),
-                "visibility": ("FLOAT", {"default": 1, "min": 0.0, "max": 1, "step": 0.05}),
-                "codeformer_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
+                "image": ("IMAGE", {"tooltip": "Image batch to restore."}),
+                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"], {"tooltip": "Detector used to locate and align faces for restoration."}),
+                "model": (get_model_names(get_restorers), {"tooltip": "Face restoration network. none returns the input unchanged."}),
+                "visibility": ("FLOAT", {"tooltip": "Blend restored face with the unrestored face: 1 uses full restoration; lower values keep more of the original.", "default": 1, "min": 0.0, "max": 1, "step": 0.05}),
+                "codeformer_weight": ("FLOAT", {"tooltip": "CodeFormer only: higher values retain more input-face detail; lower values favor restoration. Ignored by other restorers.", "default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
             },
         }
 
@@ -922,22 +933,24 @@ class RestoreFace:
 
 
 class RestoreFaceAdvanced:
+    DESCRIPTION = "Restore all detected faces or a selected slice of sorted faces."
+    OUTPUT_TOOLTIPS = ('Image batch with the selected faces restored.',)
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image": ("IMAGE",),
-                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"],),
-                "model": (get_model_names(get_restorers),),
-                "visibility": ("FLOAT", {"default": 1, "min": 0.0, "max": 1, "step": 0.05}),
-                "codeformer_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
-                "face_selection": (["all", "filter", "largest"],{"default": "all"}),
+                "image": ("IMAGE", {"tooltip": "Image batch to restore."}),
+                "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"], {"tooltip": "Detector used to locate and align faces for restoration."}),
+                "model": (get_model_names(get_restorers), {"tooltip": "Face restoration network. none returns the input unchanged."}),
+                "visibility": ("FLOAT", {"tooltip": "Blend restored face with the unrestored face: 1 uses full restoration; lower values keep more of the original.", "default": 1, "min": 0.0, "max": 1, "step": 0.05}),
+                "codeformer_weight": ("FLOAT", {"tooltip": "CodeFormer only: higher values retain more input-face detail; lower values favor restoration. Ignored by other restorers.", "default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
+                "face_selection": (["all", "filter", "largest"],{"tooltip": "all restores every detected face. Other modes select a slice using sort_by, reverse_order, take_start, and take_count.", "default": "all"}),
             },
             "optional": {
-                "sort_by": (["area", "x_position", "y_position", "detection_confidence"],{"default": "area"}),
-                "reverse_order": ("BOOLEAN", {"default": False}),
-                "take_start": ("INT", {"default": 0, "min": 0, "max": 100, "step": 1}),
-                "take_count": ("INT", {"default": 1, "min": 1, "max": 100, "step": 1}),
+                "sort_by": (["area", "x_position", "y_position", "detection_confidence"],{"tooltip": "Sort detected face crops by this value before selecting a slice. Ignored when face_selection is all.", "default": "area"}),
+                "reverse_order": ("BOOLEAN", {"tooltip": "Reverse the sort, for example descending area or right-to-left x position. Ignored when face_selection is all.", "default": False}),
+                "take_start": ("INT", {"tooltip": "Zero-based starting position in the sorted faces. Ignored when face_selection is all.", "default": 0, "min": 0, "max": 100, "step": 1}),
+                "take_count": ("INT", {"tooltip": "Number of faces to restore from take_start. Ignored when face_selection is all.", "default": 1, "min": 1, "max": 100, "step": 1}),
             }
         }
 
@@ -1590,22 +1603,24 @@ class MakeFaceModelBatch:
 
 
 class ReActorOptions:
+    DESCRIPTION = "Configure face selection and restoration scope for the fast face-swap node."
+    OUTPUT_TOOLTIPS = ('Connect to the fast face-swap node options input.',)
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "input_faces_order": (
-                    ["left-right","right-left","top-bottom","bottom-top","small-large","large-small"], {"default": "large-small"}
+                    ["left-right","right-left","top-bottom","bottom-top","small-large","large-small"], {"tooltip": "Sort target faces before applying input_faces_index. Indices start at 0.", "default": "large-small"}
                 ),
-                "input_faces_index": ("STRING", {"default": "0"}),
-                "detect_gender_input": (["no","female","male"], {"default": "no"}),
+                "input_faces_index": ("STRING", {"tooltip": "Comma-separated target positions in input_faces_order, starting at 0. Example: 0,1.", "default": "0"}),
+                "detect_gender_input": (["no","female","male"], {"tooltip": "Check the selected target faces against the detected gender; mismatches are skipped. no disables this check.", "default": "no"}),
                 "source_faces_order": (
-                    ["left-right","right-left","top-bottom","bottom-top","small-large","large-small"], {"default": "large-small"}
+                    ["left-right","right-left","top-bottom","bottom-top","small-large","large-small"], {"tooltip": "Sort source faces before applying source_faces_index. Indices start at 0.", "default": "large-small"}
                 ),
-                "source_faces_index": ("STRING", {"default": "0"}),
-                "detect_gender_source": (["no","female","male"], {"default": "no"}),
-                "console_log_level": ([0, 1, 2], {"default": 1}),
-                "restore_swapped_only": ("BOOLEAN", {"default": True, "label_off": "no", "label_on": "yes"})
+                "source_faces_index": ("STRING", {"tooltip": "Comma-separated source positions in source_faces_order, starting at 0. Valid sources cycle across selected targets.", "default": "0"}),
+                "detect_gender_source": (["no","female","male"], {"tooltip": "Check the selected source faces against the detected gender; mismatches are skipped. no disables this check.", "default": "no"}),
+                "console_log_level": ([0, 1, 2], {"tooltip": "0: warnings and errors; 1: progress/status; 2: detailed diagnostic logging.", "default": 1}),
+                "restore_swapped_only": ("BOOLEAN", {"tooltip": "Limit the main restoration pass to faces matched to swapped bounding boxes when those boxes are available.", "default": True, "label_off": "no", "label_on": "yes"})
             }
         }
 
@@ -1628,16 +1643,18 @@ class ReActorOptions:
 
 
 class ReActorFaceBoost:
+    DESCRIPTION = "Upscale and restore swapped face crops before compositing them into the target."
+    OUTPUT_TOOLTIPS = ('Connect to a face-swap node face_boost input.',)
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "enabled": ("BOOLEAN", {"default": True, "label_off": "OFF", "label_on": "ON"}),
-                "boost_model": (get_model_names(get_restorers),),
-                "interpolation": (["Nearest","Bilinear","Bicubic","Lanczos"], {"default": "Bicubic"}),
-                "visibility": ("FLOAT", {"default": 1, "min": 0.1, "max": 1, "step": 0.05}),
-                "codeformer_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
-                "restore_with_main_after": ("BOOLEAN", {"default": False}),
+                "enabled": ("BOOLEAN", {"tooltip": "Restore each swapped face crop before pasting it back. Supports inswapper and reswapper only.", "default": True, "label_off": "OFF", "label_on": "ON"}),
+                "boost_model": (get_model_names(get_restorers), {"tooltip": "Restoration model for the swapped crop, independent of the main restoration model. Choose a restorer, not none."}),
+                "interpolation": (["Nearest","Bilinear","Bicubic","Lanczos"], {"tooltip": "Resize the swapped crop to the boost model face size before restoration. Bicubic is the default.", "default": "Bicubic"}),
+                "visibility": ("FLOAT", {"tooltip": "Blend restored face with the unrestored face: 1 uses full restoration; lower values keep more of the original.", "default": 1, "min": 0.1, "max": 1, "step": 0.05}),
+                "codeformer_weight": ("FLOAT", {"tooltip": "CodeFormer only: higher values retain more input-face detail; lower values favor restoration. Ignored by other restorers.", "default": 0.5, "min": 0.0, "max": 1, "step": 0.05}),
+                "restore_with_main_after": ("BOOLEAN", {"tooltip": "Also run the swap node main restoration pass after boosted crops are pasted back. Uses the swap node restoration settings.", "default": False}),
             }
         }
 
